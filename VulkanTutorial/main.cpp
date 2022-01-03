@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -85,6 +86,7 @@ class HelloTriangleApplication
     {
         createInstance();
         setupDebugMessenger();
+        pickPhysicalDevice();
     }
 
     void createInstance()
@@ -115,10 +117,10 @@ class HelloTriangleApplication
 
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
-		
-		auto extensions = getRequiredExtensions();
-		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-		createInfo.ppEnabledExtensionNames = extensions.data();
+
+        auto extensions = getRequiredExtensions();
+        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.ppEnabledExtensionNames = extensions.data();
 
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if (gEnableValidationLayers)
@@ -150,7 +152,6 @@ class HelloTriangleApplication
         {
             std::cout << '\t' << extension.extensionName << '\n';
         }
-
     }
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
@@ -178,6 +179,87 @@ class HelloTriangleApplication
         {
             throw std::runtime_error("failed to set up debug messenger!");
         }
+    }
+
+    /*
+        https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Physical_devices_and_queue_families
+        Check this link for a Device Selection Process based on Score
+    */
+    void pickPhysicalDevice()
+    {
+        uint32_t deviceCount = 0;
+        vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+        // If there are 0 devices with Vulkan support then there is no point going further.
+        if (deviceCount == 0)
+        {
+            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        }
+
+        std::vector<VkPhysicalDevice> devices(deviceCount);
+        vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+
+        // check if any of the physical devices meet the requirements
+        for (const auto &device : devices)
+        {
+            if (isDeviceSuitable(device))
+            {
+                physicalDevice = device;
+                break;
+            }
+        }
+
+        if (physicalDevice == VK_NULL_HANDLE)
+        {
+            throw std::runtime_error("failed to find a suitable GPU!");
+        }
+    }
+
+    struct QueueFamilyIndices
+    {
+        std::optional<uint32_t> graphicsFamily;
+
+        bool isComplete()
+        {
+            return graphicsFamily.has_value();
+        }
+    };
+
+    bool isDeviceSuitable(VkPhysicalDevice device)
+    {
+        QueueFamilyIndices indices = findQueueFamilies(device);
+        return indices.isComplete();
+    }
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device)
+    {
+        QueueFamilyIndices indices;
+
+        // retrieves the list of queue families
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
+
+        // Assign index to queue families that could be found
+        int i = 0;
+        for (const auto &queueFamily : queueFamilies)
+        {
+            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                indices.graphicsFamily = i;
+            }
+
+            if (indices.isComplete())
+            {
+                break;
+            }
+
+            i++;
+        }
+
+        return indices;
     }
 
     bool checkValidationLayerSupport()
@@ -252,6 +334,7 @@ class HelloTriangleApplication
     GLFWwindow *window;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // no need to cleanup
 };
 
 int main()
