@@ -28,6 +28,7 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMes
     }
     else
     {
+        std::cerr << "error extension not present" << std::endl;
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 }
@@ -50,7 +51,7 @@ class HelloTriangleApplication
                                                         const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                                                         void *pUserData)
     {
-        std::cerr << "[validation layer]: " << pCallbackData->pMessage << '\n' << std::endl;
+        std::cerr << "[validation layer]: " << pCallbackData->pMessage << std::endl;
 
         /*
             The callback returns a boolean that indicates if the Vulkan call that triggered the validation layer message
@@ -114,6 +115,10 @@ class HelloTriangleApplication
 
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
+		
+		auto extensions = getRequiredExtensions();
+		createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+		createInfo.ppEnabledExtensionNames = extensions.data();
 
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if (gEnableValidationLayers)
@@ -138,16 +143,14 @@ class HelloTriangleApplication
 
         uint32_t extensionCount = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-        auto extensions = getRequiredExtensions();
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-        createInfo.ppEnabledExtensionNames = extensions.data();
-        // vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, availableExtensions.data());
+        std::cout << "available extensions:\n";
+        for (const auto &extension : availableExtensions)
+        {
+            std::cout << '\t' << extension.extensionName << '\n';
+        }
 
-        // std::cout << "available extensions:\n";
-        // for (const auto &extension : extensions)
-        //{
-        //     std::cout << '\t' << extension.extensionName << '\n';
-        // }
     }
 
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo)
@@ -218,6 +221,7 @@ class HelloTriangleApplication
         if (gEnableValidationLayers)
         {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            // extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
         }
 
         return extensions;
