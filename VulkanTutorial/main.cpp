@@ -87,6 +87,7 @@ class HelloTriangleApplication
         createInstance();
         setupDebugMessenger();
         pickPhysicalDevice();
+        createLogicalDevice();
     }
 
     void createInstance()
@@ -181,6 +182,53 @@ class HelloTriangleApplication
         }
     }
 
+    bool checkValidationLayerSupport()
+    {
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        for (const char *layerName : gValidationLayers)
+        {
+            bool layerFound = false;
+
+            for (const auto &layerProperties : availableLayers)
+            {
+                if (strcmp(layerName, layerProperties.layerName) == 0)
+                {
+                    layerFound = true;
+                    break;
+                }
+            }
+
+            if (!layerFound)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    std::vector<const char *> getRequiredExtensions()
+    {
+        uint32_t glfwExtensionCount = 0;
+        const char **glfwExtensions;
+        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+        if (gEnableValidationLayers)
+        {
+            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            // extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        }
+
+        return extensions;
+    }
+
     /*
         https://vulkan-tutorial.com/en/Drawing_a_triangle/Setup/Physical_devices_and_queue_families
         Check this link for a Device Selection Process based on Score
@@ -262,51 +310,54 @@ class HelloTriangleApplication
         return indices;
     }
 
-    bool checkValidationLayerSupport()
+    void createLogicalDevice()
     {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-        std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+        // Specifying the queues to be created
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        queueCreateInfo.queueCount = 1;
 
-        for (const char *layerName : gValidationLayers)
-        {
-            bool layerFound = false;
+        // ... assign priorities to influence the scheduling command buffer execution
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
 
-            for (const auto &layerProperties : availableLayers)
-            {
-                if (strcmp(layerName, layerProperties.layerName) == 0)
-                {
-                    layerFound = true;
-                    break;
-                }
-            }
+        // Specifying used device features
+        VkPhysicalDeviceFeatures deviceFeatures{}; // default everything to VK_FALSE
 
-            if (!layerFound)
-            {
-                return false;
-            }
-        }
+        // Creating the logical device
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
-        return true;
-    }
+        // ... add pointers to the queue creation info and device features structs
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
 
-    std::vector<const char *> getRequiredExtensions()
-    {
-        uint32_t glfwExtensionCount = 0;
-        const char **glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        createInfo.pEnabledFeatures = &deviceFeatures;
 
-        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        createInfo.enabledExtensionCount = 0;
 
+        // ... specify extensions and validation layers
         if (gEnableValidationLayers)
         {
-            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-            // extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+            createInfo.enabledLayerCount = static_cast<uint32_t>(gValidationLayers.size());
+            createInfo.ppEnabledLayerNames = gValidationLayers.data();
+        }
+        else
+        {
+            createInfo.enabledLayerCount = 0;
         }
 
-        return extensions;
+        // ... instantiate logical device
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create logical device!");
+        }
+
+        // Retrieving queue handles
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
     }
 
     void mainLoop()
@@ -319,6 +370,8 @@ class HelloTriangleApplication
 
     void cleanup()
     {
+        vkDestroyDevice(device, nullptr);
+
         if (gEnableValidationLayers)
         {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
@@ -335,6 +388,8 @@ class HelloTriangleApplication
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // no need to cleanup
+    VkDevice device;
+    VkQueue graphicsQueue; // no need to cleanup
 };
 
 int main()
