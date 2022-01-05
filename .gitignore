@@ -1,7 +1,11 @@
 # Created by ei06125
 
+### Visual Studio ###
 .vs/
-x64
+x64/
+
+### SPIR-V ###
+*.spv
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/windows,c++
